@@ -1,62 +1,41 @@
 #!/bin/bash
-
 set -e
 
 EC2_USER="ubuntu"
 EC2_HOST="ec2-16-171-14-23.eu-north-1.compute.amazonaws.com"
 KEY_FILE="diamondbarbershop.pem"
 
+TIMESTAMP=$(date +%s)
 LOCAL_JAR="backend/target/backend-0.0.1.jar"
-REMOTE_PATH="/opt/myapp/app.jar"
+REMOTE_JAR="backend-$TIMESTAMP.jar"
 
-echo "🚀 Starting deployment..."
-
-# =====================
-# BUILD STEP (FIXED)
-# =====================
-echo "📦 Building application..."
+echo "🚀 Build..."
 
 cd backend
-mvn clean package
+mvn clean package -DskipTests
 cd ..
 
-echo "✔ Build completed"
+echo "📤 Uploading new version..."
 
-# =====================
-# STOP OLD APP
-# =====================
-echo "🛑 Stopping old app..."
+scp -i $KEY_FILE $LOCAL_JAR \
+$EC2_USER@$EC2_HOST:/home/ubuntu/$REMOTE_JAR
 
-ssh -i $KEY_FILE $EC2_USER@$EC2_HOST << 'EOF'
-sudo systemctl stop mpbe || true
+echo "⚙️ Deploying..."
+
+ssh -i $KEY_FILE $EC2_USER@$EC2_HOST << EOF
+
+set -e
+
+sudo mkdir -p /opt/myapp/releases
+
+echo "📦 Moving new release..."
+sudo mv /home/ubuntu/$REMOTE_JAR /opt/myapp/releases/
+
+echo "🔗 Switching symlink (atomic swap)..."
+sudo ln -sfn /opt/myapp/releases/$REMOTE_JAR /opt/myapp/current.jar
+
+echo "🔁 Restarting app..."
+sudo systemctl restart mpbe
+
+echo "✅ Done"
 EOF
-
-# =====================
-# COPY JAR
-# =====================
-echo "📤 Copying JAR to EC2..."
-
-scp -i $KEY_FILE $LOCAL_JAR $EC2_USER@$EC2_HOST:/home/ubuntu/app.jar
-
-# =====================
-# DEPLOY ON SERVER
-# =====================
-echo "⚙️ Deploying on EC2..."
-
-ssh -i $KEY_FILE $EC2_USER@$EC2_HOST << 'EOF'
-
-sudo mkdir -p /opt/myapp
-sudo mv /home/ubuntu/app.jar /opt/myapp/app.jar
-
-echo "🔁 Restarting application..."
-
-if systemctl list-units --type=service | grep -q mpbe; then
-    sudo systemctl restart mpbe
-else
-    echo "No systemd service found, starting manually..."
-    nohup java -jar /opt/myapp/app.jar > app.log 2>&1 &
-fi
-
-EOF
-
-echo "✅ Deployment completed successfully!"
