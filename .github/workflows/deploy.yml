@@ -43,3 +43,6 @@ jobs:
             sudo mkdir -p /opt/myapp
             sudo mv /home/ubuntu/backend/target/backend-0.0.1.jar /opt/myapp/app.jar
             sudo systemctl restart mpbe
+
+    - name: Debug key length
+  run: echo "${{ secrets.EC2_SSH_KEY }}" | wc -c
