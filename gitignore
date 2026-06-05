@@ -1,0 +1,12 @@
+# Maven
+backend/target/
+
+# Logs
+*.log
+logs_backup/
+
+# SSH keys
+*.pem
+
+# macOS
+.DS_Store
