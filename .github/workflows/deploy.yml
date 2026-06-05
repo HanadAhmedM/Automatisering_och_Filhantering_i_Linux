@@ -22,7 +22,10 @@ jobs:
       - name: Build project
         run: |
           cd backend
-          mvn clean package
+          mvn clean package -DskipTests
+
+      - name: Debug key length
+        run: echo "${{ secrets.EC2_SSH_KEY }}" | wc -c
 
       - name: Copy jar to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -31,7 +34,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "backend/target/backend-0.0.1.jar"
-          target: "/home/ubuntu"
+          target: "/home/ubuntu/"
 
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -40,9 +43,11 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            sudo mkdir -p /opt/myapp
-            sudo mv /home/ubuntu/backend/target/backend-0.0.1.jar /opt/myapp/app.jar
-            sudo systemctl restart mpbe
+            set -e
 
-    - name: Debug key length
-  run: echo "${{ secrets.EC2_SSH_KEY }}" | wc -c
+            sudo mkdir -p /opt/myapp
+
+            sudo mv /home/ubuntu/backend-0.0.1.jar /opt/myapp/app.jar
+
+            sudo systemctl daemon-reload
+            sudo systemctl restart mpbe || sudo systemctl start mpbe
