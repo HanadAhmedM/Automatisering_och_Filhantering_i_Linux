@@ -10,24 +10,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # =====================
+      # 1. CHECKOUT
+      # =====================
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # =====================
+      # 2. SETUP JAVA
+      # =====================
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 25
+          cache: maven
 
-      - name: Build project
+      # =====================
+      # 3. BUILD PROJECT
+      # =====================
+      - name: Build with Maven
         run: |
           cd backend
           mvn clean package -DskipTests
 
-      - name: Debug key length
-        run: echo "${{ secrets.EC2_SSH_KEY }}" | wc -c
+      # =====================
+      # 4. DEBUG SSH KEY (VERIFIERA DIREKT)
+      # =====================
+      - name: Verify SSH Key (length check)
+        run: |
+          echo "Checking SSH key length..."
+          echo "${{ secrets.EC2_SSH_KEY }}" | wc -c
 
-      - name: Copy jar to EC2
+      # =====================
+      # 5. COPY JAR TO EC2
+      # =====================
+      - name: Copy JAR to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -36,6 +54,9 @@ jobs:
           source: "backend/target/backend-0.0.1.jar"
           target: "/home/ubuntu/"
 
+      # =====================
+      # 6. DEPLOY ON EC2
+      # =====================
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -45,9 +66,16 @@ jobs:
           script: |
             set -e
 
+            echo "📦 Creating app directory..."
             sudo mkdir -p /opt/myapp
 
+            echo "📦 Moving jar..."
             sudo mv /home/ubuntu/backend-0.0.1.jar /opt/myapp/app.jar
 
-            sudo systemctl daemon-reload
+            echo "🔄 Reloading systemd..."
+            sudo systemctl daemon-reload || true
+
+            echo "🚀 Restarting service..."
             sudo systemctl restart mpbe || sudo systemctl start mpbe
+
+            echo "✅ Deployment finished!"
